@@ -41,8 +41,10 @@ private[spark] class YarnClientSchedulerBackend(
    * This waits until the application is running.
    */
   override def start() {
-    val driverHost = conf.get("spark.driver.host")
-    val driverPort = conf.get("spark.driver.port")
+    val remoteDriverHost = conf.getOption("spark.driver.remote-host")
+    val remoteDriverPort = conf.getOption("spark.driver.remote-port")
+    val driverHost = remoteDriverHost.getOrElse(conf.get("spark.driver.host"))
+    val driverPort = remoteDriverPort.getOrElse(conf.get("spark.driver.port"))
     val hostport = driverHost + ":" + driverPort
     sc.ui.foreach { ui => conf.set("spark.driver.appUIAddress", ui.appUIAddress) }
 

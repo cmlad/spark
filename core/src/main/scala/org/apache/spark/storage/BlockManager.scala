@@ -177,8 +177,16 @@ private[spark] class BlockManager(
     blockTransferService.init(this)
     shuffleClient.init(appId)
 
-    blockManagerId = BlockManagerId(
-      executorId, blockTransferService.hostName, blockTransferService.port)
+    val isDriver = executorId == SparkContext.DRIVER_IDENTIFIER
+    val (remoteHost, remotePort) = if (isDriver) {
+      (conf.getOption("spark.driver.remote-host"),
+        conf.getOption("spark.blockManager.remote-port").map(_.toInt))
+    } else {
+      (None, None)
+    }
+
+    blockManagerId = BlockManagerId(executorId, remoteHost.getOrElse(blockTransferService.hostName),
+      remotePort.getOrElse(blockTransferService.port))
 
     shuffleServerId = if (externalShuffleServiceEnabled) {
       logInfo(s"external shuffle service port = $externalShuffleServicePort")

@@ -165,11 +165,30 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       val driver = fetcher.setupEndpointRefByURI(driverUrl)
       val props = driver.askWithRetry[Seq[(String, String)]](RetrieveSparkProps) ++
         Seq[(String, String)](("spark.app.id", appId))
+      // Overwrite spark.driver.host with the value of spark.driver.remote-host if it exists
+      // Overwrite spark.repl.class.uri by replacing the host with spark.driver.remote-host and
+      // the port with spark.replClassServer.remote-port if they exist
+      val propsMap = props.toMap
+      val propsWithOverrides = propsMap ++ (for {
+        remoteHost <- propsMap.get("spark.driver.remote-host")
+      } yield {
+        Map("spark.driver.host" -> remoteHost) ++ (for {
+          remoteReplClassPort <- propsMap.get("spark.replClassServer.remote-port")
+        } yield {
+          val protocol = propsMap.get("spark.repl.class.uri").map(new URL(_).getProtocol).
+            getOrElse("http")
+          Map("spark.repl.class.uri" -> s"$protocol://$remoteHost:$remoteReplClassPort")
+        }).getOrElse(
+          Nil
+        )
+      }).getOrElse(
+        Nil
+      )
       fetcher.shutdown()
 
       // Create SparkEnv using properties we fetched from the driver.
       val driverConf = new SparkConf()
-      for ((key, value) <- props) {
+      for ((key, value) <- propsWithOverrides) {
         // this is required for SSL in standalone mode
         if (SparkConf.isExecutorStartupConf(key)) {
           driverConf.setIfMissing(key, value)

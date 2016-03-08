@@ -277,9 +277,12 @@ private[spark] class ApplicationMaster(
         .getOrElse("")
 
     val _sparkConf = if (sc != null) sc.getConf else sparkConf
+    val remoteHost = _sparkConf.getOption("spark.driver.remote-host")
+    val remotePort = _sparkConf.getOption("spark.driver.remote-port")
     val driverUrl = _rpcEnv.uriOf(
         SparkEnv.driverActorSystemName,
-        RpcAddress(_sparkConf.get("spark.driver.host"), _sparkConf.get("spark.driver.port").toInt),
+        RpcAddress(remoteHost.getOrElse(_sparkConf.get("spark.driver.host")),
+          remotePort.getOrElse(_sparkConf.get("spark.driver.port")).toInt),
         CoarseGrainedSchedulerBackend.ENDPOINT_NAME)
     allocator = client.register(driverUrl,
       driverRef,
